@@ -1,6 +1,5 @@
 library(shiny)
 library(shinythemes)
-
 ui <- fluidPage(
   
   shinythemes::themeSelector(),
@@ -61,11 +60,13 @@ ui <- fluidPage(
                           h2("Basic information from the dataset"),
                           tabsetPanel(  
                             tabPanel("Summary",
+                                     br(),
                                      # Displaying summary
                                      verbatimTextOutput(outputId = "summary"),
                                      dataTableOutput("contents")
                             ),
                             tabPanel("Visualization",
+                                     br(),
                                      p("Pairs repartition :"),
                                      plotOutput("scatter"),
                                      tags$hr(),
@@ -109,6 +110,7 @@ ui <- fluidPage(
                         mainPanel(
                           tabsetPanel(
                             tabPanel("Diagnostics",
+                                     br(),
                                      p("Among SPSS users, these tests are considered to provide some guidelines on the suitability of the data for a principal components analysis. However, they may be safely ignored in favour of common sense. Variables with zero variance are excluded."),
                                      tags$hr(),
                                      p("Here is the output of Bartlett's sphericity test. Bartlett's test of sphericity tests whether the data comes from multivariate normal distribution with zero covariances. If p > 0.05 then PCA may not be very informative"),
@@ -163,6 +165,7 @@ ui <- fluidPage(
                       sidebarLayout(
                         sidebarPanel(
                           strong('INPUT K-MEANS'),
+                          br(),
                           uiOutput("km_pcs_x"),
                           uiOutput("km_pcs_y"),
                           sliderInput('iter', 'Iterations:', 50, min = 1, max = 170),
@@ -172,27 +175,25 @@ ui <- fluidPage(
                                       choices = c("Hartigan-Wong", "Lloyd", "Forgy",
                                                   "MacQueen"),
                                       selected = "Lloyd"),
-                          numericInput("nstart", label = h3("Random seed:"), value = 1),
+                          numericInput("nstart", label = h3("Random seed:"), value = 17),
                           tags$hr(),
                           p("If the dataset is labelised, select the label column :"),
-                          uiOutput("km_label"),
-                          actionButton("kmgo","Generate")
+                          uiOutput("km_label")
                         ), #end sidebar panel
                         
                         mainPanel(
                             fluidRow(column(
                             6,
                             h2("Kmeans clusters"),
-                            p("yes yes"),
                             tags$hr(),
-                            p("plot"),
-                            plotOutput('plot_kmeans', 400)
+                            br(),
+                            plotOutput('plot_kmeans', 500)
                           ),
-                          column(4,
+                          column(6,
                                  h2("Label truth"),
-                                 p("coucou"),
                                  tags$hr(),
-                                 plotOutput('plot_lkmeans', 400)
+                                 br(),
+                                 plotOutput("plot_kmeans_truth", 500)
                           ))
                         )# end main panel
                       )#end sidebar layout
@@ -202,36 +203,56 @@ ui <- fluidPage(
                       sidebarLayout(
                         sidebarPanel(
                           strong("INPUT GMM"),
+                          br(),
+                          
                           uiOutput("gmm_pcs_x"),
                           uiOutput("gmm_pcs_y")
                         ),
                         mainPanel(
                           tabsetPanel(
-                            tabPanel("Modèle 2",
+                            tabPanel("Summary",
+                                     br(),
+                                     helpText("Mclust uses an identifier for each possible parametrization of the covariance matrix that has three letters:",
+                                              "E for equal, V for variable and I for coordinate axes. The first identifier refers to volume, the second to shape and the third to orientation. For example:",
+                                              "EEE means that the G clusters have the same volume, shape and orientation in p−dimensional space.",
+                                              "VEI means variable volume, same shape and orientation equal to coordinate axes.",
+                                              "EIV means same volume, spherical shape and variable orientation."),
+                                     tags$hr(),
+                                     p("optimal selected model"),
+                                     verbatimTextOutput("gmm_iden"),
+                                     p("optimal number of cluster"),
+                                     verbatimTextOutput("gmm_cluster"),
+                                     p("probality for an observation to be in a given cluster"),
+                                     verbatimTextOutput("gmm_head"),
+                                     tags$hr(),
+                                     verbatimTextOutput("gmm_summary")
+                                     
+                            ),# end tab
+                            
+                            tabPanel("Plots",
+                                     br(),
                                      fluidRow(
                                        column(6,
-                                              p("plot 1 : "),
+                                              p("Classification : "),
                                               tags$hr(),
-                                              plotOutput("mod4__dens_plot1")),
+                                              plotOutput("gmm_classification")),
                                        column(6,
-                                              p("plot 2 : "),
+                                              p("Uncertainty : "),
                                               tags$hr(),
-                                              plotOutput("mod4__dens_plot2"))
+                                              plotOutput("gmm_uncertainty"))
                                      ),#end fluid
                                      fluidRow(
                                        column(6,
-                                              p("plot 3 : "),
+                                              p("Density : "),
                                               tags$hr(),
-                                              plotOutput("mod4__dens_plot3")),
+                                              plotOutput("gmm_density")),
                                        column(6,
-                                              p("plot 4 : "),
+                                              p("Persp : "),
                                               tags$hr(),
-                                              plotOutput("mod4__dens_plot4"))
+                                              plotOutput("gmm_persp"))
                                      )#end fluid
-                            ),#end tab
-                            tabPanel("Modèle 1",
-                                     plotOutput("mod1_plot")
-                            )# end tab
+                            )#end tab
+                            
                           )# end tabset
                         )#end main
                       )#end sidebar
@@ -243,12 +264,36 @@ ui <- fluidPage(
                                sidebarLayout(
                                  sidebarPanel(
                                    strong("INPUT SPECTRAL CLUSTERING"),
+                                   br(),
+                                   
                                    uiOutput("specc_pcs_x"),
                                    uiOutput("specc_pcs_y"),
-                                   sliderInput("specc_centers", "Centers :", min=2, max=15, value=3)
+                                   sliderInput("specc_centers", "Centers :", min=2, max=15, value=3),
+                                   
+                                   tags$hr(),
+                                   p("If the dataset is labelised, select the label column :"),
+                                   uiOutput("sc_label")
                                  ),
                                  mainPanel(
-                                   plotOutput("specc")
+                                   p("Spectral clustering techniques make use of the spectrum (eigenvalues) of the similarity matrix of the data"),
+                                   p("to perform dimensionality reduction before clustering in fewer dimensions. The similarity matrix"),
+                                   p("is provided as an input and consists of a quantitative assessment of the relative similarity of each pair of points in the dataset."),
+                                   tags$hr(),
+                                   
+                                   h3("Spectral clustering summary"),
+                                   verbatimTextOutput("sc"),
+                                   tags$hr(),
+                                   
+                                   fluidRow(
+                                     column(6,
+                                            h1("Spectral clustering"),
+                                            plotOutput("specc",500)    
+                                     ),
+                                     column(6,
+                                            h1("True labels"),
+                                            plotOutput("specc_truth",500)    
+                                     )
+                                   )
                                  )
                                )
                       ),
@@ -257,25 +302,31 @@ ui <- fluidPage(
                                 sidebarLayout(
                                   sidebarPanel(
                                       strong("INPUT AFFINITY PROPAGATION"),
+                                      br(),
+                                      
                                       uiOutput("ap_pcs_x"),
                                       uiOutput("ap_pcs_y")
                                     ),
                                     mainPanel(
+                                      h2("Affinity propagation clusters"),
+                                      p("We run affinity propagation with the default preference then with a 10% quantile similarities preference;"),
+                                      p("this should lead to a smaller number of clusters reuse similarity matrix from previous run"),
+                                      tags$hr(),
                                       fluidRow(column(
                                         6,
-                                        h2("Ap clusters"),
-                                        p("yes yes"),
-                                        tags$hr(),
+                                        p("__"),
                                         plotOutput("ap_plot",400)
                                       ),
                                       column(6,
-                                             p("run affinity propagation with default preference of 10% quantile"),
-                                             p("of similarities; this should lead to a smaller number of clusters"),
-                                             p("reuse similarity matrix from previous run"),
-                                             tags$hr(),
+                                             p("10% quantile"),
                                              plotOutput("ap_plot2",400)
                                       )),
                                       verbatimTextOutput("ap_print"),
+                                      
+                                      tags$hr(),
+                                      h3("Affinity propagation heatmap"),
+                                      
+                                      tags$hr(),
                                       plotOutput("ap_hm")
                                     )
                                 )
@@ -286,9 +337,80 @@ ui <- fluidPage(
                       tabPanel("Ensemble Clustering",
                                sidebarLayout(
                                   sidebarPanel(
+                                    strong("INPUT ENSEMBLE CLUSTERING"),
+                                    br(),
+                                    
+                                    uiOutput("ec_pcs_x"),
+                                    uiOutput("ec_pcs_y"),
+                                    tags$hr(),
+                                    checkboxGroupInput("nk_check", "Clusters :", choices = c(2:15), selected = c(2:4), inline=TRUE),
+                                    sliderInput("pct_slider", label ="Percentage :", min=0, max = 1, value = 0.8, step = 0.01),
+                                    sliderInput("reps_slider", label = "Repetitions :", min = 1, max = 100, value = 5),
+                                    tags$hr(),
+                                    uiOutput("ec_label"),
+                                    checkboxGroupInput("ec_cons", "Consensus functions to use:",
+                                                       choices= c("kmodes", "majority", "CSPA",
+                                                                  "LCE", "LCA"), selected ="kmodes", inline=TRUE),
+                                    
+                                    tags$hr(),
+                                    actionButton(inputId = "ec_go", label = "Compute")
                                   ),
-                                  mainPanel(
-                                  )
+                                  mainPanel( 
+                                    tabsetPanel(
+                                      tabPanel("Heatmap",
+                                               br(),
+                                               fluidRow(
+                                                 column(3,
+                                                        br(),
+                                                        selectInput("ec_algos", "Choose algorithm :",
+                                                                choices = c("km","gmm","sc","ap"),
+                                                                selected = "km"),
+                                                        uiOutput("hm_ev")
+                                                        ),
+                                                      
+                                                 
+                                                 column(9,
+                                                        plotOutput("plot_hm_clus",700)
+                                                 )
+                                                ),
+                                               strong("Number of clusters found by ensemble clustering:"),
+                                               verbatimTextOutput("ec_k"),
+                                               tags$hr(),
+                                               br(),
+                                               
+                                               h3("Cluster repartition :"),
+                                               dataTableOutput("ec_clusters")
+
+                                      ),
+                                      tabPanel("Internal and external validity",
+                                               br(),
+                                                 h3("External validity"),
+                                                 dataTableOutput("ec_ei"),
+                                                 tags$hr(),
+                                               
+                                                 br(),
+                                                 # htmlOutput("ec_ii"),
+                                                 h3("Internal validity"),
+                                                 dataTableOutput("eck")
+                                               ),#end tab validity
+                                       tabPanel("Miscellaneous",
+                                                br(),
+                                                
+                                                h3("Cumulative distribution function"),
+                                                plotOutput("ec_cdf"),
+                                                tags$hr(),
+                                                br(),
+                                                h3("Delta area"),
+                                                
+                                                plotOutput("ec_delta"),
+                                                tags$hr(),
+                                                br(),
+                                                
+                                                h3("Tracking"),
+                                                plotOutput("ec_tracking")
+                                                )#end tab misc
+                                    ) #set
+                                  ) # end main
                                )
                       )
              )

@@ -9,6 +9,8 @@ list.of.packages <- c("shiny",
                       "MASS",
                       "factoextra",
                       "apcluster",
+                      "knitr",
+                      "kableExtra",
                       "diceR")
 
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -43,7 +45,7 @@ server <- function(input, output, session) {
   output$contents <- DT::renderDataTable({
     DT::datatable(data = data())
   })
-  
+ 
   #tab visualization
   output$scatter <- renderPlot({
     data <- data()
@@ -293,7 +295,6 @@ server <- function(input, output, session) {
   # for zooming
   output$z_plot1 <- renderPlot({
     pca_biplot() 
-    
   })
   
   # zoom ranges
@@ -388,12 +389,47 @@ server <- function(input, output, session) {
       #                   paste0("`", input$km_pcs_y, "`")
       #        ))+
       # points(clusters$centers, pch = 1, cex = 4, lwd = 4)
+      
+      plot(selectedData,
+           col = clusters$cluster,
+           pch = 4)+
+        points(clusters$centers, pch = 2, cex = 3, lwd = 3)
+    
+    km_plot
+  })
+  
+  
+  output$plot_kmeans <- renderPlot({
+    kmeans_plot()
+    
+  })
+  
+  kmeans_truth_plot <- reactive({
+    data <- data()
+    pcs_df <- pca_objects()$pcs_df
+    x <- pca_objects()$pca_output$x
+    selectedData <- pcs_df[, c(input$km_pcs_x,input$km_pcs_y)]
+    clusters <- kmeans(x = selectedData, centers= input$clusters, iter.max = input$iter, nstart = input$nstart, algorithm = input$kmalgo, trace = input$trace)
+    palette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3",
+              "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))
+    
+    par(mar = c(5.1, 4.1, 0, 1))
+    
+    label = input$km_label
+    
+    km_plot <-
+      
+      # ggplot(as.data.frame(selectedData),
+      #        aes_string(paste0("`", input$km_pcs_x, "`"),
+      #                   paste0("`", input$km_pcs_y, "`")
+      #        ))+
+      # points(clusters$centers, pch = 1, cex = 4, lwd = 4)
       if(!is.null(label)) {
         plot(selectedData,
              col = clusters$cluster,
              pch = 10)+
           points(clusters$centers, pch = 6, cex = 3, lwd = 3)+
-          points(selectedData, col=x[label], pch=11)
+          points(selectedData, col=data[,as.character(label)], pch=11)
       }
     else{
       plot(selectedData,
@@ -406,10 +442,11 @@ server <- function(input, output, session) {
   })
   
   
-  output$plot_kmeans <- renderPlot({
-    kmeans_plot()
+  output$plot_kmeans_truth <- renderPlot({
+    kmeans_truth_plot()
     
   })
+  
   
   ######################################################### GMM ##########################################################
   #Based on the mclust package
@@ -432,28 +469,45 @@ server <- function(input, output, session) {
                 selected = 'PC2')
   })
   
-  output$mod1_summary <- renderPrint({
+  gmm <- reactive({
     pcs_df <- pca_objects()$pcs_df
     df <- pcs_df[, c(input$gmm_pcs_x,input$gmm_pcs_y)]
+    mb <- Mclust(df)
     BIC <- mclustBIC(df)
-    mod1 <- Mclust(df, x = BIC)
-    t(summary(mod1))
-  })
-  
-  output$mod1_plot <- reactive({
-    pcs_df <- pca_objects()$pcs_df
-    df <- pcs_df[, c(input$gmm_pcs_x,input$gmm_pcs_y)]
-    BIC <- mclustBIC(df)
-    mod1 <- Mclust(df, x = BIC)
-    plot(mod1, what = "BIC")
-  })
-  
-  output$mod4__dens_plot1 <- renderPlot({
-    pcs_df <- pca_objects()$pcs_df
-    #x <- pca_objects()$pca_output$x
-    df <- pcs_df[, c(input$gmm_pcs_x,input$gmm_pcs_y)]
     mod4 <- densityMclust(df)
-    plot(mod4, what = "density", type = "image")
+    return(list(mb=mb,BIC=BIC,mod4=mod4))
+  })
+  
+  output$gmm_iden <- renderText({
+    gmm()$mb$modelName
+  })
+  
+  output$gmm_cluster <- renderPrint({
+    gmm()$mb$G
+  })
+  
+  output$gmm_head <- renderPrint({
+    head(gmm()$mb$z)
+  })
+  
+  output$gmm_summary <- renderPrint({
+    summary(gmm()$mb)
+  })
+  
+  output$gmm_classification <- renderPlot({
+    plot(gmm()$mb, what=c("classification"))
+  })
+  
+  output$gmm_uncertainty <- renderPlot({
+    plot(gmm()$mb, "uncertainty")
+  })
+  
+  output$gmm_density <- renderPlot({
+    plot(gmm()$mb, "density")
+  })
+  
+  output$gmm_persp <- renderPlot({
+    plot(gmm()$mod4, what = "density", type = "persp")
   })
   
   output$mod4__dens_plot2 <- renderPlot({
@@ -473,12 +527,11 @@ server <- function(input, output, session) {
   })
   
   output$mod4__dens_plot4 <- renderPlot({
-    pcs_df <- pca_objects()$pcs_df
-    #x <- pca_objects()$pca_output$x
-    df <- pcs_df[, c(input$gmm_pcs_x,input$gmm_pcs_y)]
-    mod4 <- densityMclust(df)
-    plot(mod4, what = "density", type = "persp")
+    plot(gmm()$mod4, what = "density", type = "persp")
   })
+  
+
+  #################################################### Spectral Clustering ########################################################
   
   output$specc_pcs_x <- renderUI({
     # drop down selection
@@ -498,35 +551,66 @@ server <- function(input, output, session) {
                 selected = 'PC2')
   })
   
-  specc_plot <- reactive({
+  output$sc_label <- renderUI ({
+    
+    data <- data()
+    
+    data_num <- na.omit(data[, sapply(data,is.numeric)])
+    
+    #exclude col with zero variance
+    data_num <- data_num[,!apply(data_num,MARGIN=2, function(x) max(x,na.rm=TRUE)== min(x,na.rm=TRUE))]
+    
+    colnames <- names(data_num)
+    
+    #Creating the checkboxes and select them all by default
+    checkboxGroupInput(inputId = "sc_label", label = "Choose the labels :",
+                       choices = colnames)
+  })
+  
+  specc_f <- reactive({
     # kernlab package
     data <- data()
     pcs_df <- pca_objects()$pcs_df
     df <- pca_objects()$pca_output$x[, c(input$specc_pcs_x,input$specc_pcs_y)]
     sc <- specc(df, centers=input$specc_centers,cex=3, lwd=3)
-    plot(df, col=sc, pch=6)            # estimated classes (x)
-    #points(df, col=data[,ncol(data)], pch=10) # true classes (<>)
+    return(list(sc=sc))
   })
   
-  # specc_plot <- reactive({
+  # specc_plot_truth <- reactive({
   #   data <- data()
-  #   data <- as.data.frame(na.omit(data))
-  #   data_num <- data[, sapply(data,is.numeric)]
-  #   columns <- names(data_num)
-  #   data_subset <- na.omit(data_num[,columns, drop = FALSE ])
-  #   pca_output <- prcomp(na.omit((data_subset),center = TRUE,scale. = TRUE))
-  #   pcs_df <- cbind(data_subset,pca_output$x)
-  #   df <- pca_output$x
-  #   df <- df[,c(input$specc_pcs_x,input$specc_pcs_y)]
-  #   sc <- specc(df, centers=input$specc_centers)
-  #   plot(df, col=sc, pch=6)  # estimated classes (x)
-  #   #points(df, col=data[,ncol(data)], pch=11) # true classes (<>)
+  #   pcs_df <- pca_objects()$pcs_df
+  #   df <- pca_objects()$pca_output$x[, c(input$specc_pcs_x,input$specc_pcs_y)]
+  #   sc <- specc(df, centers=input$specc_centers,cex=3, lwd=3)
+  #   plot(df, col=sc, pch=5)            
+  #   points(df, col=data[,ncol(data)], pch=10) # true classes (<>)
   # })
-  # 
-  output$specc <- renderPlot({
-    specc_plot()
+  output$sc <- renderPrint({
+    sc=specc_f()$sc
+    print(sc)
   })
   
+  output$specc <- renderPlot({
+    data <- data()
+    pcs_df <- pca_objects()$pcs_df
+    df <- pca_objects()$pca_output$x[, c(input$specc_pcs_x,input$specc_pcs_y)]
+    sc=specc_f()$sc
+    plot(df, col=sc, pch=6)            # estimated classes (x)
+  })
+  
+  output$specc_truth <- renderPlot({
+    data <- data()
+    pcs_df <- pca_objects()$pcs_df
+    df <- pca_objects()$pca_output$x[, c(input$specc_pcs_x,input$specc_pcs_y)]
+    label=input$sc_label
+    data <- data()
+    sc=specc_f()$sc
+    plot(df, col=sc, pch=5)            
+    points(df, col=data[,as.character(label)], pch=10) # true classes (<>)
+  })
+  
+
+  
+  #################################################### Affinity Propagation ########################################################
   
   output$ap_pcs_x <- renderUI({
     # drop down selection
@@ -589,6 +673,110 @@ server <- function(input, output, session) {
   
   output$ap_plot2 <- renderPlot({
     ap_plot2()
+  })
+
+  #################################################### Ensemble Clustering ########################################################
+    
+  output$ec_pcs_x <- renderUI({
+    # drop down selection
+    pca_output <- pca_objects()$pca_output$x
+    selectInput(inputId = "ec_pcs_x",
+                label = "X Variable:",
+                choices= colnames(pca_output),
+                selected = 'PC1')
+  })
+  
+  output$ec_pcs_y <- renderUI({
+    # drop down selection
+    pca_output <- pca_objects()$pca_output$x
+    selectInput(inputId = "ec_pcs_y",
+                label = "Y Variable:",
+                choices= colnames(pca_output),
+                selected = 'PC2')
+  })
+  
+  output$ec_label <- renderUI({
+    data <- data()
+    data_num <- na.omit(data[, sapply(data,is.numeric)])
+    data_num <- data_num[,!apply(data_num,MARGIN=2, function(x) max(x,na.rm=TRUE)== min(x,na.rm=TRUE))]
+    colnames <- names(data_num)
+    #Creating the checkboxes and select them all by default
+    checkboxGroupInput("ec_label", "Choose column as label",
+                       choices = colnames,
+                       selected = NULL, inline = TRUE)
+  })
+  
+  en.cl <- eventReactive(input$ec_go, {
+    data <- data()
+    x <- data[,as.character(input$ec_label)]
+    pcs_df <- pca_objects()$pcs_df
+    df <- pcs_df[, c(input$gmm_pcs_x,input$gmm_pcs_y)]
+    CC <- consensus_cluster(df, nk = as.numeric(input$nk_check), p.item = input$pct_slider, reps = input$reps_slider,
+                             algorithms = c("ap", "gmm", "km","sc"))
+    diced <- dice(df, nk = as.numeric(input$nk_check), reps = input$reps_slider, algorithms = c("ap", "gmm", "km","sc"), cons.funs =
+           input$ec_cons, progress = TRUE, plot=FALSE, ref.cl = x)
+    
+    ccomb_matrix <- consensus_combine(CC, element = "matrix")
+    ccomb_class <- consensus_combine(CC, element = "class")
+    ccomp <- consensus_evaluate(df, CC, plot = FALSE)
+    
+    return(list(df=df,CC=CC,ccomp=ccomp, ccomb_matrix=ccomb_matrix, ccomb_class=ccomb_class,diced=diced))
+  })
+  
+  output$hm_ev <- renderUI({
+    ec <- en.cl()
+    radioButtons("ec_radio", label = "Cluster to display :",
+                 choices = ec$ccomp$pac$k, 
+                 selected = ec$ccomp$k,
+                 inline=TRUE)
+  })
+  
+  output$plot_hm_clus <- renderPlot({
+    ec <- en.cl()
+    hmap <- ec$CC[, , toupper(input$ec_algos), toString(input$ec_radio), drop = FALSE]
+    graph_heatmap(hmap)  
+  })
+  
+  output$ec_cdf <- renderPlot({
+    ec <- en.cl()
+    graph_cdf(ec$CC)  
+  })
+  
+  output$ec_delta <- renderPlot({
+    ec <- en.cl()
+    graph_delta_area(ec$CC)  
+  })
+  
+  output$ec_tracking <- renderPlot({
+    ec <- en.cl()
+    graph_tracking(ec$CC)  
+  })
+  
+  output$ec_ei <- renderDataTable({
+    ec <- en.cl()
+    datatable(as.data.frame(ec$diced$indices$ei))
+  })
+  
+   
+  output$ec_ii <- renderText({
+    ec <- en.cl()
+    knitr::kable(as.data.frame(ec$diced$indices$ii)) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = T)
+  })
+  
+  output$ec_clusters <- renderDataTable({
+    ec <- en.cl()
+    DT::datatable(as.data.frame(ec$diced$clusters))
+  })
+  
+  output$ec_k <- renderText({
+    ec <- en.cl()
+    ec$diced$indices$k
+  })
+  
+  output$eck <- renderDataTable({
+    ec <- en.cl()
+    datatable(as.data.frame(ec$diced$indices$ii))
   })
   
 }
