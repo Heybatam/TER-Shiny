@@ -53,10 +53,12 @@ shinyApp(
 
 ```
 
-With the interfac you can:
-  - Upload data, use PCA and visualize data
+Interface guide:
+  - Upload your data, use the PCA and visualize them
   - Check different clustering algorithms (Kmeans, GMM, SC, AP)
   - Perform consensus clustering with different input (nk, reps, p.item, consensus functions)
+
+![alt text](https://github.com/Heybatam/TER-Shiny/blob/Images/image43.png?raw=true)
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
